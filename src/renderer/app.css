@@ -3,5 +3,4 @@
 @tailwind utilities;
 
 body {
-  @apply bg-red-500;
 }

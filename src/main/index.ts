@@ -1,66 +1,54 @@
-import { app, BrowserWindow } from "electron";
+import { app, Tray } from "electron";
+import { Menubar, menubar } from "menubar";
 import * as path from "path";
 import { format as formatUrl } from "url";
 
 const isDevelopment = process.env.NODE_ENV !== "production";
 
-// global reference to mainWindow (necessary to prevent window from being garbage collected)
-let mainWindow: BrowserWindow | null = null;
+let mb: Menubar | null = null;
 
-function createMainWindow() {
-  const window = new BrowserWindow({
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-    },
-  });
-
-  if (isDevelopment) {
-    window.webContents.openDevTools();
-  }
-
-  if (isDevelopment) {
-    window.loadURL(`http://localhost:${process.env.ELECTRON_WEBPACK_WDS_PORT}`);
-  } else {
-    window.loadURL(
-      formatUrl({
-        pathname: path.join(__dirname, "index.html"),
-        protocol: "file",
-        slashes: true,
-      })
-    );
-  }
-
-  window.on("closed", () => {
-    mainWindow = null;
-  });
-
-  window.webContents.on("devtools-opened", () => {
-    window.focus();
-    setImmediate(() => {
-      window.focus();
-    });
-  });
-
-  return window;
-}
-
-// quit application when all windows are closed
-app.on("window-all-closed", () => {
-  // on macOS it is common for applications to stay open until the user explicitly quits
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
-app.on("activate", () => {
-  // on macOS it is common to re-create a window even after all windows have been closed
-  if (mainWindow === null) {
-    mainWindow = createMainWindow();
-  }
-});
-
-// create main BrowserWindow when electron is ready
 app.on("ready", () => {
-  mainWindow = createMainWindow();
+  const tray = new Tray(path.resolve(__dirname, "truwuTemplate.png"));
+
+  tray.on("mouse-down", () => {
+    mb?.window?.webContents.send("trayMouseDown");
+  });
+  tray.on("mouse-up", () => {
+    mb?.window?.webContents.send("trayMouseUp");
+  });
+
+  mb = menubar({
+    tray,
+    index: isDevelopment
+      ? `http:localhost:${process.env.ELECTRON_WEBPACK_WDS_PORT}`
+      : formatUrl({
+          pathname: path.join(__dirname, "index.html"),
+          protocol: "file",
+          slashes: true,
+        }),
+    tooltip: "WalkieTalkie",
+    browserWindow: {
+      height: 300,
+      width: 250,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+      },
+    },
+    showOnAllWorkspaces: true,
+    preloadWindow: true,
+    showOnRightClick: true,
+  });
+
+  mb.on("after-create-window", () => {
+    tray.removeAllListeners("double-click");
+    if (isDevelopment) {
+      mb?.window?.webContents.openDevTools({ mode: "undocked" });
+    }
+  });
+});
+
+app.on("window-all-closed", (e: Event) => {
+  app.dock.hide();
+  e.preventDefault();
 });
