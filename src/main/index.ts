@@ -1,66 +1,72 @@
-import { app, BrowserWindow } from "electron";
+import { app, Tray } from "electron";
 import * as path from "path";
 import { format as formatUrl } from "url";
+import { Menubar, menubar } from "menubar";
 
 const isDevelopment = process.env.NODE_ENV !== "production";
 
-// global reference to mainWindow (necessary to prevent window from being garbage collected)
-let mainWindow: BrowserWindow | null = null;
+let mb: Menubar | null = null;
 
-function createMainWindow() {
-  const window = new BrowserWindow({
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+app.on("ready", () => {
+  const tray = new Tray(path.resolve(__dirname, "truwuTemplate.png"));
+  tray.on("mouse-down", () => {
+    mb?.window?.webContents.send("trayMouseDown");
+  });
+
+  tray.on("mouse-up", () => {
+    mb?.window?.webContents.send("trayMouseUp");
+  });
+
+  mb = menubar({
+    tray,
+    index: isDevelopment
+      ? `http://localhost:${process.env.ELECTRON_WEBPACK_WDS_PORT}`
+      : formatUrl({
+          pathname: path.join(__dirname, "index.html"),
+          protocol: "file",
+          slashes: true,
+        }),
+    tooltip: "Electron",
+    browserWindow: {
+      height: 1000,
+      width: 100,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+      },
     },
+    showOnAllWorkspaces: true,
+    preloadWindow: true,
+    showOnRightClick: true,
   });
 
-  if (isDevelopment) {
-    window.webContents.openDevTools();
-  }
+  mb.on("after-create-window", () => {
+    // By default, menubar populates double-click with right-click behavior. This disables that:
+    tray.removeAllListeners("double-click");
 
-  if (isDevelopment) {
-    window.loadURL(`http://localhost:${process.env.ELECTRON_WEBPACK_WDS_PORT}`);
-  } else {
-    window.loadURL(
-      formatUrl({
-        pathname: path.join(__dirname, "index.html"),
-        protocol: "file",
-        slashes: true,
-      })
-    );
-  }
-
-  window.on("closed", () => {
-    mainWindow = null;
+    if (isDevelopment) {
+      mb?.window?.webContents.openDevTools({ mode: "undocked" });
+    }
   });
-
-  window.webContents.on("devtools-opened", () => {
-    window.focus();
-    setImmediate(() => {
-      window.focus();
-    });
-  });
-
-  return window;
-}
+});
 
 // quit application when all windows are closed
-app.on("window-all-closed", () => {
-  // on macOS it is common for applications to stay open until the user explicitly quits
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+app.on("window-all-closed", (event: Event) => {
+  app.dock.hide();
+  event.preventDefault();
 });
 
-app.on("activate", () => {
-  // on macOS it is common to re-create a window even after all windows have been closed
-  if (mainWindow === null) {
-    mainWindow = createMainWindow();
-  }
-});
+// import { app, Menu, Tray } from "electron";
+// import path from "path";
 
-// create main BrowserWindow when electron is ready
-app.on("ready", () => {
-  mainWindow = createMainWindow();
-});
+// let tray = null;
+// app.whenReady().then(() => {
+//   tray = new Tray(path.resolve(__dirname, "truwuTemplate.png"));
+//   tray.on("mouse-down", () => {
+//     console.log("MOUSE DOWN");
+//   });
+//   tray.on("mouse-up", () => {
+//     console.log("MOUSE UP");
+//   });
+//   tray.setToolTip("This is my application.");
+// });
